@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11131a">
+  <title>Dashboard MPL ID Season 10</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #f5f5f7;
+      background: #11131a;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at 50% -30%, #39201f 0, #11131a 55%); }
+    header { border-bottom: 1px solid #292a33; padding: 28px max(24px, calc((100% - 1180px) / 2)); }
+    .eyebrow { margin: 0 0 8px; color: #efb95f; font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(24px, 4vw, 36px); letter-spacing: -.04em; }
+    .subtitle { margin: 8px 0 0; color: #a4a4b0; font-size: 14px; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .card { min-width: 0; border: 1px solid #2c2d37; border-radius: 14px; background: #1a1b23; padding: 20px; box-shadow: 0 8px 24px #00000018; }
+    .stat-label { color: #a4a4b0; font-size: 13px; }
+    .stat-value { display: block; margin-top: 10px; color: #f5f5f7; font-size: clamp(25px, 4vw, 34px); font-weight: 800; letter-spacing: -.04em; }
+    .stat-value.accent { color: #efb95f; }
+    .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .chart-card h2 { margin: 0; font-size: 16px; }
+    .chart-card p { margin: 6px 0 16px; color: #a4a4b0; font-size: 12px; }
+    .chart-wrap { position: relative; height: 330px; }
+    .chart-card.wide { grid-column: 1 / -1; }
+    .chart-card.wide .chart-wrap { height: 360px; }
+    .error { display: none; margin: 0 0 16px; border: 1px solid #8e3b3b; border-radius: 10px; background: #381e22; padding: 12px 16px; color: #ffc4c4; }
+    footer { width: min(1180px, 100%); margin: 0 auto; padding: 0 24px 24px; color: #777984; font-size: 12px; }
+    @media (max-width: 760px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .charts { grid-template-columns: 1fr; }
+      .chart-card.wide { grid-column: auto; }
+      .chart-wrap, .chart-card.wide .chart-wrap { height: 310px; }
+    }
+    @media (max-width: 420px) {
+      header { padding: 24px 18px; }
+      main { padding: 18px; }
+      .card { padding: 16px; }
+      footer { padding: 0 18px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Mobile Legends: Bang Bang</p>
+    <h1>MPL Indonesia Season 10</h1>
+    <p class="subtitle">Statistik pick, ban, dan performa hero sepanjang musim.</p>
+  </header>
+
+  <main>
+    <p class="error" id="pesan-error" role="alert"></p>
+    <section class="stats" aria-label="Ringkasan musim">
+      <article class="card"><span class="stat-label">Hero dalam dataset</span><strong class="stat-value" id="jumlah-hero">-</strong></article>
+      <article class="card"><span class="stat-label">Total pick</span><strong class="stat-value" id="total-pick">-</strong></article>
+      <article class="card"><span class="stat-label">Total ban</span><strong class="stat-value" id="total-ban">-</strong></article>
+      <article class="card"><span class="stat-label">Win rate keseluruhan</span><strong class="stat-value accent" id="win-rate">-</strong></article>
+    </section>
+
+    <section class="charts" aria-label="Grafik statistik hero">
+      <article class="card chart-card">
+        <h2>Hero paling sering di-pick</h2>
+        <p>10 hero dengan jumlah pick tertinggi.</p>
+        <div class="chart-wrap"><canvas id="grafikPick" aria-label="Grafik 10 hero dengan jumlah pick tertinggi"></canvas></div>
+      </article>
+      <article class="card chart-card">
+        <h2>Hero paling sering di-ban</h2>
+        <p>10 hero dengan jumlah ban tertinggi.</p>
+        <div class="chart-wrap"><canvas id="grafikBan" aria-label="Grafik 10 hero dengan jumlah ban tertinggi"></canvas></div>
+      </article>
+      <article class="card chart-card wide">
+        <h2>Win rate tertinggi</h2>
+        <p>10 hero terbaik dengan minimal 10 kali pick; angka pick ditampilkan pada tooltip.</p>
+        <div class="chart-wrap"><canvas id="grafikWinRate" aria-label="Grafik 10 hero dengan win rate tertinggi"></canvas></div>
+      </article>
+    </section>
+  </main>
+  <footer id="hero-terpopuler">Sumber data: data/MPL_ID_S10.csv</footer>
+
+  <script>
+    Chart.defaults.color = "#a4a4b0";
+    Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+    Chart.defaults.maintainAspectRatio = false;
+
+    function buatGrafik(id, labels, values, label, color, suffix, tooltipTitle) {
+      new Chart(document.getElementById(id), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data: values,
+            backgroundColor: color,
+            borderRadius: 5,
+            maxBarThickness: 24
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => tooltipTitle ? tooltipTitle(items[0].dataIndex) : items[0].label,
+                label: (item) => `${label}: ${item.formattedValue}${suffix}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: "#30313a" },
+              ticks: { callback: (value) => `${value}${suffix}` }
+            },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    async function muatDashboard() {
+      try {
+        const [ringkasanResponse, statistikResponse] = await Promise.all([
+          fetch("/api/ringkasan"),
+          fetch("/api/statistik-hero")
+        ]);
+        if (!ringkasanResponse.ok || !statistikResponse.ok) {
+          throw new Error("Server tidak dapat memuat data statistik.");
+        }
+        const [ringkasan, statistik] = await Promise.all([
+          ringkasanResponse.json(),
+          statistikResponse.json()
+        ]);
+
+        const angka = new Intl.NumberFormat("id-ID");
+        document.getElementById("jumlah-hero").textContent = angka.format(ringkasan.jumlah_hero);
+        document.getElementById("total-pick").textContent = angka.format(ringkasan.total_pick);
+        document.getElementById("total-ban").textContent = angka.format(ringkasan.total_ban);
+        document.getElementById("win-rate").textContent = `${ringkasan.win_rate}%`;
+        document.getElementById("hero-terpopuler").textContent =
+          `Hero dengan total pick + ban tertinggi: ${ringkasan.hero_terpopuler}. Sumber data: data/MPL_ID_S10.csv`;
+
+        buatGrafik("grafikPick", statistik.top_pick.labels, statistik.top_pick.data,
+          "Jumlah pick", "#efb95f", "", null);
+        buatGrafik("grafikBan", statistik.top_ban.labels, statistik.top_ban.data,
+          "Jumlah ban", "#e36b5d", "", null);
+        buatGrafik("grafikWinRate", statistik.top_win_rate.labels, statistik.top_win_rate.data,
+          "Win rate", "#6db9a5", "%", (index) =>
+            `${statistik.top_win_rate.labels[index]} (${angka.format(statistik.top_win_rate.jumlah_pick[index])} pick)`);
+      } catch (error) {
+        const pesan = document.getElementById("pesan-error");
+        pesan.textContent = `Gagal memuat dashboard: ${error.message}`;
+        pesan.style.display = "block";
+      }
+    }
+
+    muatDashboard();
+  </script>
+</body>
+</html>
